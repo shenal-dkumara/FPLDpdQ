@@ -81,3 +81,5 @@ The function returns a list containing five estimated parameters:
 ## License
 
 MIT License.
+
+
