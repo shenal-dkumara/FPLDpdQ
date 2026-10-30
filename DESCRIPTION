@@ -1,0 +1,28 @@
+Package: FPLDpdQ
+Type: Package
+Title: Probability Density Quantile Estimation for the Five-Parameter Lambda Distribution
+Version: 0.1.0
+Authors@R: person(
+    given = "Shenal",
+    family = "Dedduwakumara",
+    email = "shenal.dedduwakumara@adelaide.edu.au",
+    role = c("aut", "cre")
+    )
+Description: Provides probability density quantile (pdQ) based
+    estimation methods for the five-parameter lambda distribution
+    (FPLD). Shape parameters are estimated by minimising the
+    Hellinger distance between empirical and theoretical pdQ
+    functions. Location and scale parameters are estimated using
+    density-based fitting, quartile matching, moment matching,
+    or quantile regression with optional weighting.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Imports: 
+    EnvStats,
+    gld,
+    NMOF,
+    quantreg
+Config/roxygen2/version: 8.1.1
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
