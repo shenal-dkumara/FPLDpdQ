@@ -13,10 +13,8 @@ The package can be installed from GitHub using:
 
 ```r
 # install.packages("remotes")
-remotes::install_github("YOUR_USERNAME/FPLDpdQ")
+remotes::install_github("shenal-dkumara/FPLDpdQ")
 ```
-
-*The GitHub repository address will be updated after publication.*
 
 ## Estimation methods
 
@@ -27,7 +25,7 @@ Five estimation variants are available:
 | `dens` | Density-based estimation |
 | `qm` | Quartile matching |
 | `mom` | Moment matching |
-| `qr` | Quantile regression |
+| `qr` with `weights = FALSE` | Unweighted quantile regression |
 | `qr` with `weights = TRUE` | Weighted quantile regression |
 
 All five variants use the same pdQ-based shape estimation procedure.
@@ -49,26 +47,31 @@ fit_qm <- FPLDpdQ(x, method = "qm")
 # Moment matching
 fit_mom <- FPLDpdQ(x, method = "mom")
 
-# Quantile regression
-fit_qr <- FPLDpdQ(x, method = "qr")
+# Unweighted quantile regression
+fit_qr <- FPLDpdQ(x, method = "qr", weights = FALSE)
 
 # Weighted quantile regression
 fit_wqr <- FPLDpdQ(x, method = "qr", weights = TRUE)
 
+# Display estimated parameters
 fit_dens
+fit_qm
+fit_mom
+fit_qr
+fit_wqr
 ```
 
 ## Function arguments
 
 ```r
-FPLDpdQ(x, J = 50, method = "dens", tau = 0.5, weights = FALSE)
+FPLDpdQ(x, J = 50, method = "dens", tau = 0.5, weights = TRUE)
 ```
 
 - `x`: Numeric sample.
 - `J`: Number of evaluation points used in empirical pdQ estimation.
 - `method`: Location and scale estimation method.
-- `tau`: Quantile regression parameter.
-- `weights`: Whether to use weighted quantile regression.
+- `tau`: Quantile regression level (default 0.5).
+- `weights`: Logical. If TRUE, weighted quantile regression is used when `method = "qr"`; otherwise, unweighted quantile regression is used. Default is TRUE.
 
 ## Output
 

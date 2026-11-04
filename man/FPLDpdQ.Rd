@@ -22,7 +22,8 @@ method = "qr". Default is 0.5.}
 \item{weights}{Logical. If TRUE, weighted quantile
 regression is used when method = "qr".
 If FALSE, unweighted quantile regression is used.
-Default is TRUE.}
+Default is TRUE.
+Ignored for other estimation methods.}
 }
 \value{
 A named list containing the five estimated FPLD

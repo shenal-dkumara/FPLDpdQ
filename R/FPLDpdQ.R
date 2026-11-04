@@ -23,6 +23,7 @@
 #'   regression is used when method = "qr".
 #'   If FALSE, unweighted quantile regression is used.
 #'   Default is TRUE.
+#'   Ignored for other estimation methods.
 #'
 #' @return A named list containing the five estimated FPLD
 #'   parameters: lambda1 (location), lambda2 (inverse scale),
@@ -44,60 +45,94 @@
 
 FPLDpdQ <- function(x, J=50, method="dens", tau=0.5, weights=TRUE){
 
-  #remove NA values
+  # ---- Input validation ----
+
+  # Check observations
+  if (!is.numeric(x) || !is.null(dim(x))) {
+    stop("'x' must be a numeric vector.")
+  }
+
+  # Remove missing observations
   x <- x[!is.na(x)]
+
+  if (any(!is.finite(x))) {
+    stop("'x' must contain only finite observations after removing NA values.")
+  }
+
+  # Check number of pdQ grid points
+  if (!is.numeric(J) || length(J) != 1L ||
+      !is.finite(J) || J < 2 || J != floor(J)) {
+    stop("'J' must be an integer greater than or equal to 2.")
+  }
+
+  # Check estimation method
+  if (!is.character(method) || length(method) != 1L ||
+      is.na(method) ||
+      !method %in% c("dens", "qm", "mom", "qr")) {
+    stop("'method' must be one of 'dens', 'qm', 'mom', or 'qr'.")
+  }
+
+  # Check quantile regression level
+  if (!is.numeric(tau) || length(tau) != 1L ||
+      !is.finite(tau) || tau <= 0 || tau >= 1) {
+    stop("'tau' must be a number strictly between 0 and 1.")
+  }
+
+  # Check weights argument
+  if (!is.logical(weights) || length(weights) != 1L ||
+      is.na(weights)) {
+    stop("'weights' must be TRUE or FALSE.")
+  }
 
   # Empirical pdQ estimation
   inc <- 1/J
   u <- c(seq(inc / 2, 1 - inc / 2, inc))
   fQstarhat <- .pdQ_emp(x, J)
 
-  # ---- shape levels (as starship) ----
+  # Grid values for initial shape parameter estimation
   shape_levels <- list(
     lambda3 = c(-1.5, -1, -0.5, -0.1, 0, 0.1,0.2, 0.4, 0.8, 1, 1.5),
     lambda4 = c(-1.5, -1, -0.5, -0.1, 0, 0.1,0.2, 0.4, 0.8, 1, 1.5),
     lambda5 = c(-0.5, -0.25, 0, 0.25, 0.5)
   )
 
-  # lower and upper bounds for shape parameters
+  # Bounds for shape parameter optimisation
   lower_shape <- c(-Inf, -Inf, -1)
   upper_shape <- c(Inf, Inf, 1)
 
-  # lower and upper bounds for location and scale
+  # Bounds for location and inverse-scale optimisation
   lower_ls <- c(-Inf, 0)
   upper_ls <- c(Inf, Inf)
 
-  # ---- grid search for initial shape parameters ----
+  # Grid search for initial shape parameter estimates
   grid_vals <- NMOF::gridSearch(fun = .obj_shape, levels = shape_levels, u=u, fQstarhat=fQstarhat, J=J,printDetail = FALSE)
   start_par <- grid_vals$minlevels
 
-  # ---- optimize to find the optimal shape parameters ----
+  # Refine shape estimates using numerical optimisation
   opt_shape <- tryCatch(nlminb(start_par, .obj_shape, u = u, fQstarhat = fQstarhat, J = J,lower = lower_shape, upper = upper_shape ),error = function(e) list(par = c(NA,NA,NA)))
   shape_hat <- opt_shape$par
   l3 <- shape_hat[1]
   l4 <- shape_hat[2]
   l5 <- shape_hat[3]
 
-  # ---- different methods for estimating location and scale parematers ----
+  # Estimate location and inverse-scale parameters
   if(method=="qm"){
 
-    # quartile matching estimates for l1 and l2
+    # Estimate location and inverse scale by quartile matching
     pr<-c(0.25,0.5,0.75)
     q<-c(quantile(x,pr[1]),quantile(x,pr[2]),quantile(x,pr[3]))
 
     # Handle zero shape parameters
     term1 <- if (l3 == 0) log(pr) else expm1(l3 * log(pr)) / l3
     term2 <- if (l4 == 0) log(1 - pr) else expm1(l4 * log(1 - pr)) / l4
-
     xpr <- (1 - l5) * term1 - (1 + l5) * term2
-
     l2 <- (xpr[3]-xpr[1])/(q[3]-q[1])
     l1 <- q[2]-xpr[2]/l2
     est_par <- c(l1,l2,l3,l4,l5)
 
   }else if(method=="dens"){
 
-    ## ---- Start values from QM (unchanged) ----
+    # Initial location and inverse-scale estimates from quartile matching
     pr <- c(0.25,0.5,0.75)
     q  <- quantile(x, pr, names = FALSE)
 
@@ -105,21 +140,19 @@ FPLDpdQ <- function(x, J=50, method="dens", tau=0.5, weights=TRUE){
     term1 <- if (l3 == 0) log(pr) else expm1(l3 * log(pr)) / l3
     term2 <- if (l4 == 0) log(1 - pr) else expm1(l4 * log(1 - pr)) / l4
     xpr <- (1 - l5) * term1 - (1 + l5) * term2
-
     l2.start <- (xpr[3]-xpr[1])/(q[3]-q[1])
     l1.start <- q[2] - xpr[2]/l2.start
-
     start_ls <- c(l1.start, l2.start)
 
-    ## ---- PRECOMPUTE EMPIRICAL DENSITY ONCE ----
+    # Compute empirical density estimates once
     n  <- length(x)
     emp <- EnvStats::demp(x, x)
     sqrt_emp <- sqrt(pmax(emp, 0))
 
-    ## ---- Fast objective ----
+    # Minimise the discrepancy between empirical and fitted densities
     obj_dens <- function(par){
 
-      # Fast reject
+      # Penalise invalid FPLD parameter combinations
       if (!gld::gl.check.lambda(c(par[1], par[2], l3, l4, l5),
                                 param = "fm5", vect = TRUE)) {
         return(.Machine$integer.max)
@@ -127,8 +160,6 @@ FPLDpdQ <- function(x, J=50, method="dens", tau=0.5, weights=TRUE){
 
       th <- gld::dgl(x, par[1], par[2], l3, l4, l5, param = "fm5")
       sqrt_th <- sqrt(pmax(th, 0))
-
-      # direct mean is faster than sum/length
       sqrt(0.5 * mean((sqrt_emp - sqrt_th)^2))
     }
 
@@ -147,6 +178,7 @@ FPLDpdQ <- function(x, J=50, method="dens", tau=0.5, weights=TRUE){
     l1 <- NA_real_
     l2 <- NA_real_
 
+    # Approximate moments of the standardised FPLD
     p_grid <- seq(1e-4, 1 - 1e-4, length.out = 2000)
 
     try({S_vals <- gld::qgl(p_grid,lambda1 = c(0, 1, l3, l4, l5),param = "fm5")
@@ -155,17 +187,13 @@ FPLDpdQ <- function(x, J=50, method="dens", tau=0.5, weights=TRUE){
 
     if (length(S_vals) > 10) {
 
+      # Approximate first and second raw moments
       S1 <- mean(S_vals)
       S2 <- mean(S_vals^2)
-
       var_S <- S2 - S1^2
 
       if (is.finite(S1) && is.finite(var_S) && var_S > 0 && sd(x) > 0) {
-
-        # lambda2 is inverse scale
         l2 <- sqrt(var_S) / sd(x)
-
-        # lambda1 = sample mean - S1 / lambda2
         l1 <- mean(x) - S1 / l2
       }
     }
@@ -191,7 +219,7 @@ FPLDpdQ <- function(x, J=50, method="dens", tau=0.5, weights=TRUE){
 
     # Weighted quantile regression (pdQ-WQR)
 
-    # Theoretical density evaluated at quantiles
+    # Theoretical quantile density used to construct regression weights
     fQ <- gld::dqgl(
       pr,
       c(0, 1, l3, l4, l5),
@@ -243,7 +271,6 @@ FPLDpdQ <- function(x, J=50, method="dens", tau=0.5, weights=TRUE){
   }
 
   l2 <- 1 / slope
-
   est_par <- c(l1, l2, l3, l4, l5)
 
 } else{
