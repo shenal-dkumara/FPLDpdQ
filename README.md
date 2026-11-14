@@ -18,7 +18,12 @@ remotes::install_github("shenal-dkumara/FPLDpdQ")
 
 ## Estimation methods
 
-Five estimation variants are available:
+The package uses a two-stage estimation procedure:
+
+1. **Shape parameter estimation:** The three shape parameters are estimated using the pdQ approach by minimising the Hellinger distance between the empirical and theoretical pdQ functions.
+
+2. **Location and scale parameter estimation:** Given the estimated shape parameters, the remaining location and scale parameters are estimated using one of five alternative methods given below.
+
 
 | Method | Description |
 |---|---|
@@ -28,7 +33,7 @@ Five estimation variants are available:
 | `qr` with `weights = FALSE` | Unweighted quantile regression |
 | `qr` with `weights = TRUE` | Weighted quantile regression |
 
-All five variants use the same pdQ-based shape estimation procedure.
+All five methods use the same pdQ-based shape parameter estimation procedure and differ only in how the location and inverse-scale parameters are estimated.
 
 ## Usage
 
